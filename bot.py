@@ -102,7 +102,7 @@ async def ask_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     total_tokens = result["prompt_tokens"] + result["completion_tokens"]
     usage_line = (
         f"_模型 {model},本次消耗 {total_tokens} tokens,花费 ${result['cost']:.4f},"
-        f"累计花费 ${totals['total_cost']:.4f}_"
+        f"累计 {totals['total_tokens']} tokens,累计花费 ${totals['total_cost']:.4f}_"
     )
 
     await message.reply_text(

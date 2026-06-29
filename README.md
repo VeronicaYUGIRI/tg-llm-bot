@@ -26,6 +26,17 @@
 | `/settings` | 查看本群当前模型、历史消息上限、当前缓存数量、累计用量 |
 | `/setmodel <模型ID>` | 修改本群使用的模型,例如 `/setmodel anthropic/claude-opus-4.7` |
 | `/setwindow <数字>` | 修改本群缓存的历史消息条数上限,例如 `/setwindow 20` |
+| `/chatid` | 查看当前群的 chat_id(不受白名单限制,任何群都能用,用来配置 `ALLOWED_CHAT_IDS`) |
+| `/dumphistory` | 调试用,原样打印当前内存里缓存的历史记录列表 |
+
+## 限制只允许特定群使用(防止被外人白嫖)
+
+Telegram 没有"设为私有 bot"的开关,任何人知道 bot 用户名都能把它加进自己的群,消耗你的 OpenRouter 额度。为此加入了白名单机制:
+
+1. 把 bot 加入你自己的群,发送 `/chatid`,记下返回的数字(可能是负数,这是正常的,群聊的 chat_id 通常是负数)
+2. 在 `.env`(本地)/ Railway 的 Variables(线上)里设置 `ALLOWED_CHAT_IDS=那个数字`,多个群用逗号分隔,例如 `ALLOWED_CHAT_IDS=-1001234567890,-1009876543210`
+3. 设置后,只有白名单里的群,bot 才会记录消息、响应任何命令;其他群里 bot 会完全没反应(不回复、不计费、不记录)
+4. 如果 `ALLOWED_CHAT_IDS` 留空,则不限制,bot 会在任何加入的群里生效(不推荐长期这样)
 
 ## 本地运行
 
@@ -85,6 +96,7 @@ python bot.py
    - `OPENROUTER_API_KEY`
    - `OPENROUTER_MODEL`
    - `HISTORY_WINDOW_SIZE`
+   - `ALLOWED_CHAT_IDS`(强烈建议设置,见下文"限制只允许特定群使用")
 4. Railway 会根据 `Procfile` 自动以 worker 方式启动 `python bot.py`
 5. 部署成功后,bot 会一直在线监听群消息,本地终端的 `python bot.py` 就可以关掉了
 6. 每次修改环境变量或推送新代码触发 redeploy,程序都会重启(内存中未处理的聊天记录会丢失,但 `/setmodel`/`/setwindow` 设置和累计花费通常会保留,除非数据库文件本身被重置)

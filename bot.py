@@ -17,6 +17,13 @@ OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 DEFAULT_MODEL = os.getenv("OPENROUTER_MODEL", "anthropic/claude-opus-4.7")
 DEFAULT_WINDOW_SIZE = int(os.getenv("HISTORY_WINDOW_SIZE", "20"))
 
+_allowed_chat_ids_raw = os.getenv("ALLOWED_CHAT_IDS", "").strip()
+ALLOWED_CHAT_IDS = (
+    {int(x.strip()) for x in _allowed_chat_ids_raw.split(",") if x.strip()}
+    if _allowed_chat_ids_raw
+    else None
+)
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
 
@@ -156,18 +163,48 @@ async def setwindow_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"已将本群历史消息上限设置为: {max_messages} 条")
 
 
+async def chatid_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Not restricted by the allowlist, so you can always look up a chat_id."""
+    await update.message.reply_text(f"本群 chat_id: {update.message.chat_id}")
+
+
+async def dumphistory_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Debug helper: show the raw in-memory history list for this chat."""
+    chat_id = update.message.chat_id
+    history = chat_histories.get(chat_id, [])
+    if not history:
+        await update.message.reply_text("当前历史记录为空。")
+        return
+    lines = [f"[{i}] {item['role']}: {item['content']}" for i, item in enumerate(history)]
+    text = "\n".join(lines)
+    if len(text) > 3500:
+        text = text[-3500:]
+    await update.message.reply_text(text)
+
+
 def main():
     db.init_db()
 
     app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
 
-    app.add_handler(CommandHandler("ask", ask_command))
-    app.add_handler(CommandHandler("usage", usage_command))
-    app.add_handler(CommandHandler("settings", settings_command))
-    app.add_handler(CommandHandler("reset", reset_command))
-    app.add_handler(CommandHandler("setmodel", setmodel_command))
-    app.add_handler(CommandHandler("setwindow", setwindow_command))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    # /chatid is never restricted, so you can always look up a chat's id.
+    app.add_handler(CommandHandler("chatid", chatid_command))
+
+    chat_filter = filters.Chat(chat_id=ALLOWED_CHAT_IDS) if ALLOWED_CHAT_IDS else filters.ALL
+
+    app.add_handler(CommandHandler("ask", ask_command, filters=chat_filter))
+    app.add_handler(CommandHandler("usage", usage_command, filters=chat_filter))
+    app.add_handler(CommandHandler("settings", settings_command, filters=chat_filter))
+    app.add_handler(CommandHandler("reset", reset_command, filters=chat_filter))
+    app.add_handler(CommandHandler("setmodel", setmodel_command, filters=chat_filter))
+    app.add_handler(CommandHandler("setwindow", setwindow_command, filters=chat_filter))
+    app.add_handler(CommandHandler("dumphistory", dumphistory_command, filters=chat_filter))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & chat_filter, handle_message))
+
+    if ALLOWED_CHAT_IDS:
+        logger.info("Restricting bot to chat_ids: %s", ALLOWED_CHAT_IDS)
+    else:
+        logger.warning("ALLOWED_CHAT_IDS is not set - bot will respond in ANY chat it's added to.")
 
     logger.info("Bot starting...")
     app.run_polling()

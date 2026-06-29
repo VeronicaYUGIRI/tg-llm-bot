@@ -101,7 +101,8 @@ async def ask_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     totals = db.get_chat_total_cost(chat_id)
     total_tokens = result["prompt_tokens"] + result["completion_tokens"]
     usage_line = (
-        f"_模型 {model},本次消耗 {total_tokens} tokens,花费 ${result['cost']:.4f},"
+        f"_🤖 {model}\n"
+        f"本次消耗 {total_tokens} tokens,花费 ${result['cost']:.4f}\n"
         f"累计 {totals['total_tokens']} tokens,累计花费 ${totals['total_cost']:.4f}_"
     )
 
@@ -175,7 +176,7 @@ async def dumphistory_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     if not history:
         await update.message.reply_text("当前历史记录为空。")
         return
-    lines = [f"[{i}] {item['role']}: {item['content']}" for i, item in enumerate(history)]
+    lines = [f"[{i}] {item['role']}: {item['content']}" for i, item in enumerate(history, start=1)]
     text = "\n".join(lines)
     if len(text) > 3500:
         text = text[-3500:]

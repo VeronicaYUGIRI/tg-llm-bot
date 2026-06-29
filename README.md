@@ -13,7 +13,8 @@
   累计 1234 tokens,累计花费 $0.0234
   ```
 - 用 SQLite(`usage.db`)记录每次调用的明细(时间、用户、模型、token 数、花费)
-- 累计花费等数据库记录会随重启/重新部署而清空(未配置持久化存储),如不在意可忽略
+- `usage.db` 是 SQLite 二进制文件,不能直接用文本编辑器打开,需要用 [DB Browser for SQLite](https://sqlitebrowser.org/) 之类的工具,或 VSCode 的 SQLite Viewer 插件查看
+- 本地重启 `python bot.py` **不会**清空 `usage.db`,数据会一直累积。只有 **Railway 重新部署**时,因为没配置持久化存储卷,容器会是全新的,`usage.db` 才会被清空(不影响本地的数据库文件)
 
 ## 默认值 vs 运行时设置
 

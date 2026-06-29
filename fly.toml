@@ -1,0 +1,14 @@
+# fly.toml app configuration file generated for tg-llm-bot on 2026-06-29T18:13:26+09:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'tg-llm-bot'
+primary_region = 'nrt'
+
+[build]
+
+[[vm]]
+  memory = '256mb'
+  cpu_kind = 'shared'
+  cpus = 1

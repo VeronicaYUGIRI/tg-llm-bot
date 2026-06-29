@@ -14,13 +14,13 @@
   ```
 - 用 SQLite(`usage.db`)记录每次调用的明细(时间、用户、模型、token 数、花费)
 - `usage.db` 是 SQLite 二进制文件,不能直接用文本编辑器打开,需要用 [DB Browser for SQLite](https://sqlitebrowser.org/) 之类的工具,或 VSCode 的 SQLite Viewer 插件查看
-- 本地重启 `python bot.py` **不会**清空 `usage.db`,数据会一直累积。只有 **Railway 重新部署**时,因为没配置持久化存储卷,容器会是全新的,`usage.db` 才会被清空(不影响本地的数据库文件)
+- 本地重启 `python bot.py` **不会**清空 `usage.db`,数据会一直累积。只有云端平台(Railway/Fly.io)重新部署时,因为没配置持久化存储卷,容器会是全新的,`usage.db` 才会被清空(不影响本地的数据库文件)
 
 ## 默认值 vs 运行时设置
 
-`.env`(本地)/ Railway 的 Variables(线上)里的 `OPENROUTER_MODEL`、`HISTORY_WINDOW_SIZE` 只是**初始默认值**。一旦在群里用过 `/setmodel` 或 `/setwindow`,实际生效的设置会存进 `usage.db`,优先级高于 `.env`/环境变量,且不受程序重启影响(除非数据库文件本身被清空)。改 `.env`/Railway 环境变量,只是改"万一数据库里没有设置时,回退用哪个默认值",不会覆盖已经设置好的值。
+`.env`(本地)/ Railway 的 Variables / Fly.io 的 secrets(线上)里的 `OPENROUTER_MODEL`、`HISTORY_WINDOW_SIZE` 只是**初始默认值**。一旦在群里用过 `/setmodel` 或 `/setwindow`,实际生效的设置会存进 `usage.db`,优先级高于 `.env`/环境变量,且不受程序重启影响(除非数据库文件本身被清空)。改 `.env`/环境变量,只是改"万一数据库里没有设置时,回退用哪个默认值",不会覆盖已经设置好的值。
 
-本地和 Railway 上的 `.env`/环境变量是各自独立的,互不同步,需要分别修改。
+本地和各个云端平台上的 `.env`/环境变量是各自独立的,互不同步,需要分别修改。
 
 ## 命令列表
 
@@ -40,7 +40,7 @@
 Telegram 没有"设为私有 bot"的开关,任何人知道 bot 用户名都能把它加进自己的群,消耗你的 OpenRouter 额度。为此加入了白名单机制:
 
 1. 把 bot 加入你自己的群,发送 `/chatid`,记下返回的数字(可能是负数,这是正常的,群聊的 chat_id 通常是负数)
-2. 在 `.env`(本地)/ Railway 的 Variables(线上)里设置 `ALLOWED_CHAT_IDS=那个数字`,多个群用逗号分隔,例如 `ALLOWED_CHAT_IDS=-1001234567890,-1009876543210`
+2. 在 `.env`(本地)/ 云端平台的环境变量里设置 `ALLOWED_CHAT_IDS=那个数字`,多个群用逗号分隔,例如 `ALLOWED_CHAT_IDS=-1001234567890,-1009876543210`
 3. 设置后,只有白名单里的群,bot 才会记录消息、响应任何命令;其他群里 bot 会完全没反应(不回复、不计费、不记录)
 4. 如果 `ALLOWED_CHAT_IDS` 留空,则不限制,bot 会在任何加入的群里生效(不推荐长期这样)
 
@@ -109,6 +109,48 @@ python bot.py
 6. 每次修改环境变量或推送新代码触发 redeploy,程序都会重启(内存中未处理的聊天记录会丢失,但 `/setmodel`/`/setwindow` 设置和累计花费通常会保留,除非数据库文件本身被重置)
 7. Railway 免费额度是"30 天或 $5,先到先得",到期或额度用完后需要绑卡升级才能继续在线;小流量的私人群聊通常不会很快用完额度
 
+## 部署到 Fly.io
+
+Fly.io 是另一种部署方案,免费额度比 Railway 更长期(不是 30 天试用),但需要装一个命令行工具自己操作,适合不介意用一下命令行的人。**不要同时把 Railway 和 Fly.io 都跑起来**——同一个 Telegram bot token 只能被一个地方监听,两边同时跑会互相冲突报错(`Conflict: terminated by other getUpdates request`)。
+
+1. 注册 [fly.io](https://fly.io) 账号(可能需要信用卡验证身份,免费额度内不会被扣费;新账号有时会被标记为"高风险",需要去 fly.io/high-risk-unlock 走一下验证)
+2. 在本地安装 `flyctl` 命令行工具:
+   ```
+   powershell -c "irm https://fly.io/install.ps1 | iex"
+   ```
+3. 登录:
+   ```
+   flyctl auth login
+   ```
+4. 项目里需要 `Dockerfile`(已包含在本仓库)和 `.dockerignore`(确保 `.env`、`usage.db` 不会被打包进镜像)
+5. 初始化项目配置(`--no-deploy` 表示先生成配置,不立即部署):
+   ```
+   flyctl launch --no-deploy --name 你的应用名 --region nrt --yes
+   ```
+6. 检查生成的 `fly.toml`:**必须删除默认生成的 `[http_service]` 区块**,因为这个 bot 不是网站、不监听端口,保留这个区块可能导致 Fly.io 在"没有访问流量"时把机器关掉。改成类似:
+   ```
+   [build]
+
+   [[vm]]
+     memory = '256mb'
+     cpu_kind = 'shared'
+     cpus = 1
+   ```
+7. 把 `.env` 内容导入成 Fly.io 的 secrets:
+   ```
+   flyctl secrets import < .env
+   ```
+8. 部署:
+   ```
+   flyctl deploy
+   ```
+9. **重要**:部署后用 `flyctl status` 检查机器数量,确保**只有 1 台**在跑。Fly.io 默认可能会创建一台"备用机"(standby),对这种内存里存状态的单实例程序是有害的(两台机器各自维护一份聊天记录,会导致历史记录看起来"丢失"或不一致)。如果看到 2 台,执行:
+   ```
+   flyctl scale count 1 --yes
+   ```
+10. 用 `flyctl logs --no-tail` 查看日志,确认没有 `Conflict` 报错,且 `getUpdates` 持续返回 `200 OK`
+11. Fly.io 机器崩溃会自动重启,平时不需要手动管理
+
 ## 文件说明
 
 - `bot.py` — 主程序,处理 Telegram 消息和命令
@@ -116,4 +158,5 @@ python bot.py
 - `db.py` — SQLite 数据库操作(用量记录、群设置)
 - `requirements.txt` — Python 依赖列表
 - `Procfile` / `runtime.txt` — Railway 部署配置
+- `Dockerfile` / `.dockerignore` / `fly.toml` — Fly.io 部署配置
 - `.env.example` — 环境变量模板(不含真实密钥)

@@ -6,7 +6,12 @@
 
 - bot 加入群后能看到所有人的消息(需要在 BotFather 里关闭隐私模式,见下文)
 - 默默记录大家聊的内容,**不会自动回复**,只有发送 `/ask` 时才会综合目前积累的聊天记录回复一次
-- 每次 bot 回复后面会附一行用量信息:这次用的模型、消耗的 token 数、这次花费、累计花费
+- 每次 bot 回复后面会附一段斜体用量信息,格式类似:
+  ```
+  🤖 deepseek/deepseek-v4-flash
+  本次消耗 74 tokens,花费 $0.0014
+  累计 1234 tokens,累计花费 $0.0234
+  ```
 - 用 SQLite(`usage.db`)记录每次调用的明细(时间、用户、模型、token 数、花费)
 - 累计花费等数据库记录会随重启/重新部署而清空(未配置持久化存储),如不在意可忽略
 
@@ -27,7 +32,7 @@
 | `/setmodel <模型ID>` | 修改本群使用的模型,例如 `/setmodel anthropic/claude-opus-4.7` |
 | `/setwindow <数字>` | 修改本群缓存的历史消息条数上限,例如 `/setwindow 20` |
 | `/chatid` | 查看当前群的 chat_id(不受白名单限制,任何群都能用,用来配置 `ALLOWED_CHAT_IDS`) |
-| `/dumphistory` | 调试用,原样打印当前内存里缓存的历史记录列表 |
+| `/dumphistory` | 调试用,原样打印当前内存里缓存的历史记录列表(序号从 1 开始) |
 
 ## 限制只允许特定群使用(防止被外人白嫖)
 
@@ -55,6 +60,7 @@ TELEGRAM_BOT_TOKEN=你的telegram bot token
 OPENROUTER_API_KEY=你的openrouter api key
 OPENROUTER_MODEL=anthropic/claude-opus-4.7
 HISTORY_WINDOW_SIZE=20
+ALLOWED_CHAT_IDS=
 ```
 
 `.env` 文件包含密钥,已加入 `.gitignore`,不会被提交到 GitHub,请不要手动把它传上去。

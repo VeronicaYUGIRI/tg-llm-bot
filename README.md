@@ -1,6 +1,6 @@
 # TG LLM Bot
 
-一个 Telegram 群聊机器人,通过 [OpenRouter](https://openrouter.ai) 调用 LLM(默认模型 `anthropic/claude-opus-4.7`),让群里的人可以像在 ChatGPT 群组功能里一样跟 AI 对话。
+一个 Telegram 群聊机器人,通过 [OpenRouter](https://openrouter.ai) 调用 LLM(模型可配置,见下文),让群里的人可以像在 ChatGPT 群组功能里一样跟 AI 对话。
 
 ## 功能
 
@@ -8,7 +8,13 @@
 - 默默记录大家聊的内容,**不会自动回复**,只有发送 `/ask` 时才会综合目前积累的聊天记录回复一次
 - 每次 bot 回复后面会附一行用量信息:这次用的模型、消耗的 token 数、这次花费、累计花费
 - 用 SQLite(`usage.db`)记录每次调用的明细(时间、用户、模型、token 数、花费)
-- 累计花费等数据库记录会随 Railway 部署/重启而清空(未配置持久化存储),如不在意可忽略
+- 累计花费等数据库记录会随重启/重新部署而清空(未配置持久化存储),如不在意可忽略
+
+## 默认值 vs 运行时设置
+
+`.env`(本地)/ Railway 的 Variables(线上)里的 `OPENROUTER_MODEL`、`HISTORY_WINDOW_SIZE` 只是**初始默认值**。一旦在群里用过 `/setmodel` 或 `/setwindow`,实际生效的设置会存进 `usage.db`,优先级高于 `.env`/环境变量,且不受程序重启影响(除非数据库文件本身被清空)。改 `.env`/Railway 环境变量,只是改"万一数据库里没有设置时,回退用哪个默认值",不会覆盖已经设置好的值。
+
+本地和 Railway 上的 `.env`/环境变量是各自独立的,互不同步,需要分别修改。
 
 ## 命令列表
 
@@ -74,13 +80,15 @@ python bot.py
 
 1. 把本仓库推送到 GitHub(私有仓库)
 2. 登录 [railway.app](https://railway.app),New Project → Deploy from GitHub repo,选择这个仓库
-3. 在 Railway 项目的 Variables 标签页,添加以下环境变量(内容跟本地 `.env` 一致):
+3. 在 Railway 项目的 Variables 标签页,添加以下环境变量(内容跟本地 `.env` 一致,但两边是独立的,各自维护):
    - `TELEGRAM_BOT_TOKEN`
    - `OPENROUTER_API_KEY`
    - `OPENROUTER_MODEL`
    - `HISTORY_WINDOW_SIZE`
 4. Railway 会根据 `Procfile` 自动以 worker 方式启动 `python bot.py`
 5. 部署成功后,bot 会一直在线监听群消息,本地终端的 `python bot.py` 就可以关掉了
+6. 每次修改环境变量或推送新代码触发 redeploy,程序都会重启(内存中未处理的聊天记录会丢失,但 `/setmodel`/`/setwindow` 设置和累计花费通常会保留,除非数据库文件本身被重置)
+7. Railway 免费额度是"30 天或 $5,先到先得",到期或额度用完后需要绑卡升级才能继续在线;小流量的私人群聊通常不会很快用完额度
 
 ## 文件说明
 

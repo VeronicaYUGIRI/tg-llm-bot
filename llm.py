@@ -19,7 +19,7 @@ async def call_llm(messages, model, api_key):
         "usage": {"include": True},
     }
 
-    async with httpx.AsyncClient(timeout=60) as client:
+    async with httpx.AsyncClient(timeout=300) as client:
         response = await client.post(OPENROUTER_URL, headers=headers, json=payload)
         response.raise_for_status()
         data = response.json()

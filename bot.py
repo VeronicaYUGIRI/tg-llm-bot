@@ -2,6 +2,8 @@ import logging
 import os
 from datetime import datetime, timezone
 
+import httpx
+
 from dotenv import load_dotenv
 from telegram import Update
 from telegram.constants import ParseMode
@@ -78,9 +80,17 @@ async def ask_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
         result = await llm.call_llm(history, model, OPENROUTER_API_KEY)
-    except Exception:
+    except httpx.TimeoutException:
+        logger.exception("LLM call timed out")
+        await message.reply_text(f"调用 LLM 超时(模型:{model}),请稍后再试。")
+        return
+    except httpx.HTTPStatusError as e:
+        logger.exception("LLM call HTTP error")
+        await message.reply_text(f"调用 LLM 失败(HTTP {e.response.status_code}):{ e.response.text[:200]}")
+        return
+    except Exception as e:
         logger.exception("LLM call failed")
-        await message.reply_text("调用 LLM 失败,请稍后再试。")
+        await message.reply_text(f"调用 LLM 失败:{e}")
         return
 
     history.append({"role": "assistant", "content": result["reply"]})
